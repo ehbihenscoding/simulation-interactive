@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Modèle logistique de Verhulst — simulation interactive</title>
+<style>
+  /* ── Reset & base ─────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bleu:    #003C78;
+    --bleuCl:  #E8EFF7;
+    --vert:    #00643C;
+    --vertCl:  #E6F2EC;
+    --orange:  #D26400;
+    --orangeCl:#FDF2E6;
+    --gris:    #505050;
+    --fond:    #F7F9FC;
+    --blanc:   #FFFFFF;
+    --txt:     #1A1A2E;
+  }
+
+  html, body {
+    height: 100%; width: 100%;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--fond);
+    color: var(--txt);
+    overflow: hidden;
+  }
+
+  /* ── Layout principal 16:9 ────────────────────────────────────────────── */
+  .shell {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100vh;
+    max-height: 100vh;
+    padding: 10px 16px 8px;
+    gap: 8px;
+  }
+
+  /* ── Header ───────────────────────────────────────────────────────────── */
+  header {
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  header h1 {
+    font-size: 1.05rem; font-weight: 700; color: var(--bleu);
+    letter-spacing: -0.01em;
+  }
+  header .subtitle {
+    font-size: 0.78rem; color: var(--gris); font-style: italic;
+  }
+
+  /* ── Corps : canvas + contrôles ──────────────────────────────────────── */
+  .body {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 12px;
+    min-height: 0;
+  }
+
+  /* ── Canvas ───────────────────────────────────────────────────────────── */
+  .canvas-wrap {
+    background: var(--blanc);
+    border-radius: 8px;
+    border: 1px solid #D0DCF0;
+    padding: 8px 12px 4px;
+    display: flex; flex-direction: column;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  canvas { flex: 1; width: 100% !important; }
+
+  /* ── Panneau contrôles ────────────────────────────────────────────────── */
+  .controls {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+
+  .ctrl-card {
+    background: var(--blanc);
+    border-radius: 8px;
+    border: 1px solid #D0DCF0;
+    padding: 10px 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+
+  .ctrl-card h2 {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--gris);
+    margin-bottom: 8px; padding-bottom: 4px;
+    border-bottom: 1px solid #E0E8F2;
+  }
+
+  /* Slider row */
+  .slider-row {
+    display: grid;
+    grid-template-columns: 18px 1fr 46px;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .slider-row:last-child { margin-bottom: 0; }
+
+  .slider-row .param-sym {
+    font-size: 0.85rem; font-weight: 700;
+    text-align: center;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%; height: 4px;
+    border-radius: 2px;
+    outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  /* Couleurs par paramètre */
+  .r-color   { color: var(--bleu); }
+  .K-color   { color: var(--vert); }
+  .N0-color  { color: var(--orange); }
+
+  input.r-range  { background: #C5D8EF; }
+  input.r-range::-webkit-slider-thumb { background: var(--bleu); }
+  input.K-range  { background: #B8DFCC; }
+  input.K-range::-webkit-slider-thumb { background: var(--vert); }
+  input.N0-range { background: #F4CEAE; }
+  input.N0-range::-webkit-slider-thumb { background: var(--orange); }
+
+  .val-badge {
+    font-size: 0.75rem; font-weight: 700;
+    text-align: right; white-space: nowrap;
+  }
+
+  /* ── Presets ──────────────────────────────────────────────────────────── */
+  .presets { display: flex; gap: 5px; flex-wrap: wrap; }
+  .preset-btn {
+    flex: 1; min-width: 0;
+    font-size: 0.68rem; font-weight: 600;
+    padding: 4px 4px;
+    border: 1.5px solid;
+    border-radius: 5px;
+    cursor: pointer;
+    background: transparent;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  .preset-btn:hover { color: white; }
+  .preset-btn.active { color: white; }
+
+  .preset-btn[data-preset="croissance_lente"]  { border-color: var(--bleu);   color: var(--bleu); }
+  .preset-btn[data-preset="croissance_rapide"] { border-color: var(--vert);   color: var(--vert); }
+  .preset-btn[data-preset="saturation"]        { border-color: var(--orange); color: var(--orange); }
+  .preset-btn[data-preset="gd_inoculum"]       { border-color: #7B3F9E;      color: #7B3F9E; }
+
+  .preset-btn[data-preset="croissance_lente"]:hover,
+  .preset-btn[data-preset="croissance_lente"].active  { background: var(--bleu); border-color: var(--bleu); }
+  .preset-btn[data-preset="croissance_rapide"]:hover,
+  .preset-btn[data-preset="croissance_rapide"].active { background: var(--vert); border-color: var(--vert); }
+  .preset-btn[data-preset="saturation"]:hover,
+  .preset-btn[data-preset="saturation"].active        { background: var(--orange); border-color: var(--orange); }
+  .preset-btn[data-preset="gd_inoculum"]:hover,
+  .preset-btn[data-preset="gd_inoculum"].active       { background: #7B3F9E; border-color: #7B3F9E; }
+
+  /* ── Formule ──────────────────────────────────────────────────────────── */
+  .formula-box {
+    background: var(--bleuCl);
+    border-left: 3px solid var(--bleu);
+    border-radius: 0 6px 6px 0;
+    padding: 6px 8px;
+    font-size: 0.75rem;
+    color: var(--bleu);
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  /* ── Métriques ────────────────────────────────────────────────────────── */
+  .metrics {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 5px;
+  }
+  .metric {
+    background: var(--fond);
+    border: 1px solid #D8E5F3;
+    border-radius: 6px;
+    padding: 5px 6px;
+    text-align: center;
+  }
+  .metric .mval {
+    font-size: 0.82rem; font-weight: 700; display: block;
+  }
+  .metric .mlbl {
+    font-size: 0.60rem; color: var(--gris); display: block; margin-top: 1px;
+  }
+
+  /* ── Footer ───────────────────────────────────────────────────────────── */
+  footer {
+    font-size: 0.65rem; color: var(--gris);
+    display: flex; justify-content: space-between;
+    padding: 0 2px;
+  }
+  .hint { font-style: italic; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header>
+    <h1>Modèle logistique de Verhulst — simulation interactive</h1>
+    <span class="subtitle">Explorez l'effet de chaque paramètre</span>
+  </header>
+
+  <!-- ── Corps ──────────────────────────────────────────────────────────── -->
+  <div class="body">
+
+    <!-- Canvas -->
+    <div class="canvas-wrap">
+      <canvas id="cvs"></canvas>
+    </div>
+
+    <!-- Contrôles -->
+    <div class="controls">
+
+      <!-- Formule -->
+      <div class="ctrl-card">
+        <h2>Équation différentielle</h2>
+        <div class="formula-box">
+          dN/dt = r · N · (1 − N/K)<br>
+          ↓<br>
+          N(t) = K / (1 + A·e<sup style="font-size:0.6em">−rt</sup>)
+        </div>
+      </div>
+
+      <!-- Sliders -->
+      <div class="ctrl-card">
+        <h2>Paramètres</h2>
+
+        <div class="slider-row">
+          <span class="param-sym r-color">r</span>
+          <input id="sl_r" class="r-range" type="range"
+                 min="0.1" max="3.0" step="0.05" value="1.0">
+          <span class="val-badge r-color" id="lbl_r">1.00 h⁻¹</span>
+        </div>
+
+        <div class="slider-row">
+          <span class="param-sym K-color">K</span>
+          <input id="sl_K" class="K-range" type="range"
+                 min="0.5" max="5.0" step="0.1" value="3.0">
+          <span class="val-badge K-color" id="lbl_K">3.0 DO</span>
+        </div>
+
+        <div class="slider-row">
+          <span class="param-sym N0-color">N₀</span>
+          <input id="sl_N0" class="N0-range" type="range"
+                 min="0.02" max="1.5" step="0.02" value="0.05">
+          <span class="val-badge N0-color" id="lbl_N0">0.05 DO</span>
+        </div>
+      </div>
+
+      <!-- Métriques -->
+      <div class="ctrl-card">
+        <h2>Propriétés calculées</h2>
+        <div class="metrics">
+          <div class="metric">
+            <span class="mval r-color" id="m_td">—</span>
+            <span class="mlbl">t_doublement (h)</span>
+          </div>
+          <div class="metric">
+            <span class="mval K-color" id="m_tinf">—</span>
+            <span class="mlbl">t* inflexion (h)</span>
+          </div>
+          <div class="metric">
+            <span class="mval" style="color:#7B3F9E" id="m_phase">—</span>
+            <span class="mlbl">phase exp. (h)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Presets -->
+      <!--<div class="ctrl-card">
+        <h2>Scénarios biologiques</h2>
+        <div class="presets">
+          <button class="preset-btn" data-preset="croissance_lente">Croissance lente</button>
+          <button class="preset-btn" data-preset="croissance_rapide">Croissance rapide</button>
+          <button class="preset-btn" data-preset="saturation">Saturation rapide</button>
+          <button class="preset-btn" data-preset="gd_inoculum">Grand inoculum</button>
+        </div>
+      </div>-->
+
+      <!-- Données bruitées -->
+      <div class="ctrl-card">
+        <h2>Données expérimentales bruitées</h2>
+        <!--<div style="font-size:0.68rem; color:var(--gris); margin-bottom:6px; line-height:1.4;">
+          N₀=0.48 · K=4.3 · r=1 + bruit fort
+        </div>-->
+        <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+          <button id="btn_generate" style="
+            flex:1; font-size:0.70rem; font-weight:700;
+            padding:5px 6px;
+            border: 1.5px solid #C0392B; border-radius:5px;
+            cursor:pointer; background:transparent; color:#C0392B;
+            transition: background 0.15s, color 0.15s;
+          "
+          onmouseover="this.style.background='#C0392B';this.style.color='white';"
+          onmouseout="this.style.background='transparent';this.style.color='#C0392B';"
+          >⊕ Générer points bruités</button>
+	<!--<button id="btn_generate_noisy">⊕ Avec bruit</button>
+	<button id="btn_generate_clean">⊕ Sans bruit</button>-->
+          <button id="btn_clear" style="
+            font-size:0.70rem; font-weight:700;
+            padding:5px 8px;
+            border: 1.5px solid #888; border-radius:5px;
+            cursor:pointer; background:transparent; color:#888;
+            transition: background 0.15s, color 0.15s;
+          "
+          onmouseover="this.style.background='#888';this.style.color='white';"
+          onmouseout="this.style.background='transparent';this.style.color='#888';"
+          >✕</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <label style="font-size:0.67rem; color:var(--gris); white-space:nowrap;">N points :</label>
+          <input id="sl_npts" type="range" min="5" max="40" step="1" value="18"
+            style="flex:1; height:4px; -webkit-appearance:none; border-radius:2px; background:#EAACAC; outline:none; cursor:pointer;"
+          >
+          <span id="lbl_npts" style="font-size:0.72rem; font-weight:700; color:#C0392B; min-width:20px; text-align:right;">18</span>
+        </div>
+	<div style="display:flex; align-items:center; gap:6px; margin-top:6px;">
+  <label style="font-size:0.67rem; color:var(--gris); white-space:nowrap;">Bruit σ :</label>
+  <input id="sl_sigma" type="range" min="0" max="1" step="0.05" value="0.5"
+    style="flex:1; height:4px; -webkit-appearance:none; border-radius:2px; background:#EAACAC; outline:none; cursor:pointer;"
+  >
+  <span id="lbl_sigma" style="font-size:0.72rem; font-weight:700; color:#C0392B; min-width:28px; text-align:right;">0.50</span>
+</div>
+      </div>
+
+    </div><!-- /controls -->
+  </div><!-- /body -->
+
+  <!-- ── Footer ─────────────────────────────────────────────────────────── -->
+  <footer>
+    <span class="hint">Bougez les curseurs pour observer l'effet de chaque paramètre sur la courbe</span>
+    <span>AgroParisTech · Leçon MCF</span>
+  </footer>
+
+</div><!-- /shell -->
+
+<script>
+// ── Paramètres et state ─────────────────────────────────────────────────────
+const state = { r: 1.0, K: 3.0, N0: 0.05 };
+
+// ── Données bruitées (N0=0.48, K=4.3, r=1) ──────────────────────────────────
+const NOISY = { r: 1.0, K: 4.3, N0: 0.48 };
+let noisyPoints = [];
+
+function generateNoisyPoints(n) {
+  const { r, K, N0 } = NOISY;
+  const sigma = parseFloat(document.getElementById('sl_sigma').value); // ← ajout
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const t = Math.random() * T_MAX;
+    const Ntheo = logistic(t, r, K, N0);
+    const bruit_mult = 1 + (Math.random() * 2 - 1) * sigma;      // ← sigma ici
+    const bruit_add  = (Math.random() * 2 - 1) * sigma * 0.8;    // ← et ici
+    let Nb = Ntheo * bruit_mult + bruit_add;
+    Nb = Math.max(0.01, Nb);
+    pts.push({ t, N: Nb });
+  }
+  pts.sort((a, b) => a.t - b.t);
+  return pts;
+}
+
+const COLORS = {
+  r:    '#003C78',
+  K:    '#00643C',
+  N0:   '#D26400',
+  grid: '#E4EBF5',
+  axes: '#333333',
+  N0dot:'#D26400',
+  Kline:'#00643C',
+  Kinf: '#7B3F9E',
+  fond:  '#F7F9FC',
+};
+
+const T_MAX  = 14;   // durée en heures
+const N_PTS  = 400;
+
+// ── Canvas setup ────────────────────────────────────────────────────────────
+const cvs = document.getElementById('cvs');
+const ctx = cvs.getContext('2d');
+
+function resize() {
+  const wrap = cvs.parentElement;
+  cvs.width  = wrap.clientWidth  - 24;
+  cvs.height = wrap.clientHeight - 16;
+  draw();
+}
+
+// ── Modèle logistique ────────────────────────────────────────────────────────
+function logistic(t, r, K, N0) {
+  const A = (K - N0) / N0;
+  return K / (1 + A * Math.exp(-r * t));
+}
+
+// ── Coordonnées → pixels ─────────────────────────────────────────────────────
+function makeTransform(W, H) {
+  const PAD = { l: 52, r: 20, t: 18, b: 38 };
+  const xMin = 0, xMax = T_MAX;
+  const yMin = 0, yMax = 5.5;
+
+  const px = x => PAD.l + (x - xMin) / (xMax - xMin) * (W - PAD.l - PAD.r);
+  const py = y => H - PAD.b - (y - yMin) / (yMax - yMin) * (H - PAD.t - PAD.b);
+  return { px, py, PAD, xMin, xMax, yMin, yMax };
+}
+
+// ── Dessin ───────────────────────────────────────────────────────────────────
+function draw() {
+  const W = cvs.width, H = cvs.height;
+  const { px, py, PAD, xMin, xMax, yMin, yMax } = makeTransform(W, H);
+  const { r, K, N0 } = state;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Fond
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Grille ──────────────────────────────────────────────────────────────
+  ctx.strokeStyle = COLORS.grid;
+  ctx.lineWidth = 1;
+
+  // Lignes horizontales
+  for (let yv = 0; yv <= 5; yv += 0.5) {
+    if (yv > yMax) break;
+    ctx.beginPath();
+    ctx.moveTo(px(xMin), py(yv));
+    ctx.lineTo(px(xMax), py(yv));
+    ctx.stroke();
+    if (yv % 1 === 0) {
+      ctx.fillStyle = '#888';
+      ctx.font = '10px system-ui';
+      ctx.textAlign = 'right';
+      ctx.fillText(yv.toFixed(1), px(xMin) - 5, py(yv) + 3);
+    }
+  }
+
+  // Lignes verticales
+  for (let xv = 0; xv <= T_MAX; xv += 2) {
+    ctx.beginPath();
+    ctx.moveTo(px(xv), py(yMin));
+    ctx.lineTo(px(xv), py(yMax));
+    ctx.stroke();
+    ctx.fillStyle = '#888';
+    ctx.font = '10px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(xv, px(xv), py(yMin) + 14);
+  }
+
+  // ── Axes ─────────────────────────────────────────────────────────────────
+  ctx.strokeStyle = COLORS.axes;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(px(xMin), py(yMin));
+  ctx.lineTo(px(xMax) + 8, py(yMin));
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(px(xMin), py(yMin));
+  ctx.lineTo(px(xMin), py(yMax) - 8);
+  ctx.stroke();
+
+  // Labels axes
+  ctx.fillStyle = COLORS.axes;
+  ctx.font = 'italic 11px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('t  (h)', px((xMax)/2), py(yMin) + 28);
+  ctx.save();
+  ctx.translate(px(xMin) - 38, py((yMax + yMin)/2));
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('N(t)  (DO₆₀₀)', 0, 0);
+  ctx.restore();
+
+  // ── Asymptote K ──────────────────────────────────────────────────────────
+  if (K <= yMax) {
+    ctx.strokeStyle = COLORS.K;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(px(xMin), py(K));
+    ctx.lineTo(px(xMax), py(K));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = COLORS.K;
+    ctx.font = 'bold 11px system-ui';
+    ctx.textAlign = 'right';
+    ctx.fillText('K = ' + K.toFixed(1), px(xMax) - 4, py(K) - 4);
+  }
+
+  // ── Point N0 ─────────────────────────────────────────────────────────────
+  ctx.fillStyle = COLORS.N0;
+  ctx.beginPath();
+  ctx.arc(px(0), py(N0), 5, 0, 2*Math.PI);
+  ctx.fill();
+  ctx.fillStyle = COLORS.N0;
+  ctx.font = 'bold 11px system-ui';
+  ctx.textAlign = 'left';
+  ctx.fillText('N₀ = ' + N0.toFixed(2), px(0) + 8, py(N0) - 4);
+
+  // ── Point d'inflexion ─────────────────────────────────────────────────────
+  const A = (K - N0) / N0;
+  const t_inf = A > 0 ? Math.log(A) / r : -1;
+  if (t_inf > 0 && t_inf < T_MAX) {
+    const N_inf = K / 2;
+    // Ligne verticale pointillée
+    ctx.strokeStyle = COLORS.Kinf;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(px(t_inf), py(yMin));
+    ctx.lineTo(px(t_inf), py(N_inf));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Point
+    ctx.fillStyle = COLORS.Kinf;
+    ctx.beginPath();
+    ctx.arc(px(t_inf), py(N_inf), 5, 0, 2*Math.PI);
+    ctx.fill();
+    // Label
+    ctx.fillStyle = COLORS.Kinf;
+    ctx.font = 'bold 10px system-ui';
+    ctx.textAlign = 'left';
+    ctx.fillText('t* = ' + t_inf.toFixed(2) + 'h', px(t_inf) + 6, py(N_inf) + 4);
+    ctx.fillText('N = K/2', px(t_inf) + 6, py(N_inf) + 15);
+
+    // Tangente en inflexion (pente = rK/4)
+    const pente = r * K / 4;
+    const dt = 1.8;
+    ctx.strokeStyle = COLORS.Kinf;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 2]);
+    ctx.beginPath();
+    ctx.moveTo(px(t_inf - dt), py(N_inf - pente * dt));
+    ctx.lineTo(px(t_inf + dt), py(N_inf + pente * dt));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ── Courbe logistique (trait principal) ───────────────────────────────────
+  ctx.strokeStyle = COLORS.r;
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  let first = true;
+  for (let i = 0; i <= N_PTS; i++) {
+    const t = xMin + (xMax - xMin) * i / N_PTS;
+    const N = logistic(t, r, K, N0);
+    if (N < 0 || N > yMax * 1.1) continue;
+    if (first) { ctx.moveTo(px(t), py(N)); first = false; }
+    else         ctx.lineTo(px(t), py(N));
+  }
+  ctx.stroke();
+
+  // ── Zone phase exponentielle (N < K/10) ──────────────────────────────────
+  const t_expEnd = A > 0 ? Math.log(A * 9) / r : -1; // N = K/10 → A e^{-rt}=9 → t = ln(9A)/r
+  if (t_expEnd > 0 && t_expEnd < T_MAX) {
+    ctx.fillStyle = 'rgba(0,60,120,0.06)';
+    ctx.beginPath();
+    ctx.moveTo(px(0), py(0));
+    for (let i = 0; i <= 80; i++) {
+      const t = t_expEnd * i / 80;
+      const N = logistic(t, r, K, N0);
+      ctx.lineTo(px(t), py(N));
+    }
+    ctx.lineTo(px(t_expEnd), py(0));
+    ctx.closePath();
+    ctx.fill();
+
+    // Label
+    ctx.fillStyle = COLORS.r;
+    ctx.font = '9px system-ui';
+    ctx.textAlign = 'center';
+    const tMid = t_expEnd / 2;
+    ctx.fillText('phase exp.', px(tMid), py(yMin) - 4);
+  }
+
+  // ── Points bruités ────────────────────────────────────────────────────────
+  if (noisyPoints.length > 0) {
+    // Courbe théorique des données bruitées (en rouge discret)
+    ctx.strokeStyle = 'rgba(192,57,43,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    let firstN = true;
+    for (let i = 0; i <= N_PTS; i++) {
+      const t = xMin + (xMax - xMin) * i / N_PTS;
+      const N = logistic(t, NOISY.r, NOISY.K, NOISY.N0);
+      if (N < 0 || N > yMax * 1.1) continue;
+      if (firstN) { ctx.moveTo(px(t), py(N)); firstN = false; }
+      else         ctx.lineTo(px(t), py(N));
+    }
+    //ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Points
+    noisyPoints.forEach(({ t, N }) => {
+      if (N > yMax * 1.15 || t > xMax) return;
+      ctx.beginPath();
+      ctx.arc(px(t), py(N), 5, 0, 2 * Math.PI);
+      ctx.fillStyle = 'rgba(192,57,43,0.75)';
+      ctx.fill();
+      ctx.strokeStyle = '#7B1A0E';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+
+    // Label
+    ctx.fillStyle = '#C0392B';
+    ctx.font = 'bold 10px system-ui';
+    ctx.textAlign = 'left';
+    //ctx.fillText('Données exp. (N₀=0.48, K=4.3, r=1)', px(xMin) + 4, py(yMax) + 14);
+  }
+
+  // ── Légende ───────────────────────────────────────────────────────────────
+  const lx = px(xMax) - 90, ly = py(yMax) + 14;
+  const items = [
+    { color: COLORS.r,    label: 'N(t) — courbe' },
+    { color: COLORS.K,    label: 'Asymptote K',   dash: true },
+    { color: COLORS.Kinf, label: "Point d'inflexion" },
+  ];
+  ctx.font = '10px system-ui';
+  items.forEach((it, i) => {
+    const y = ly + i * 14;
+    ctx.strokeStyle = it.color;
+    ctx.lineWidth = 2;
+    if (it.dash) ctx.setLineDash([5,3]); else ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(lx, y); ctx.lineTo(lx + 18, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#444';
+    ctx.textAlign = 'left';
+    ctx.fillText(it.label, lx + 22, y + 3);
+  });
+}
+
+// ── Métriques ────────────────────────────────────────────────────────────────
+function updateMetrics() {
+  const { r, K, N0 } = state;
+  const A = (K - N0) / N0;
+
+  const td   = Math.log(2) / r;
+  document.getElementById('m_td').textContent   = td.toFixed(2);
+
+  const tinf = A > 0 ? Math.log(A) / r : NaN;
+  document.getElementById('m_tinf').textContent = isFinite(tinf) && tinf > 0
+    ? tinf.toFixed(2) : '—';
+
+  // Phase exponentielle approx : jusqu'à N = K/10
+  const t_exp = A > 0 ? Math.log(9*A) / r : NaN;
+  document.getElementById('m_phase').textContent = isFinite(t_exp) && t_exp > 0
+    ? t_exp.toFixed(2) : '< 0';
+}
+
+// ── Mise à jour des sliders ──────────────────────────────────────────────────
+function onSlider() {
+  state.r  = parseFloat(document.getElementById('sl_r').value);
+  state.K  = parseFloat(document.getElementById('sl_K').value);
+  state.N0 = parseFloat(document.getElementById('sl_N0').value);
+
+  document.getElementById('lbl_r').textContent  = state.r.toFixed(2) + ' h⁻¹';
+  document.getElementById('lbl_K').textContent  = state.K.toFixed(1) + ' DO';
+  document.getElementById('lbl_N0').textContent = state.N0.toFixed(2) + ' DO';
+
+  updateMetrics();
+  draw();
+}
+document.getElementById('sl_sigma').addEventListener('input', function() {
+  document.getElementById('lbl_sigma').textContent = parseFloat(this.value).toFixed(2);
+  if (noisyPoints.length > 0) {
+    noisyPoints = generateNoisyPoints(parseInt(document.getElementById('sl_npts').value));
+    draw();
+  }
+});
+
+document.getElementById('sl_r').addEventListener('input', onSlider);
+document.getElementById('sl_K').addEventListener('input', onSlider);
+document.getElementById('sl_N0').addEventListener('input', onSlider);
+
+// ── Presets ──────────────────────────────────────────────────────────────────
+const PRESETS = {
+  croissance_lente:  { r: 0.4,  K: 3.0, N0: 0.05 },
+  croissance_rapide: { r: 2.2,  K: 3.0, N0: 0.05 },
+  saturation:        { r: 1.5,  K: 1.2, N0: 0.05 },
+  gd_inoculum:       { r: 1.0,  K: 3.0, N0: 1.20 },
+};
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const p = PRESETS[btn.dataset.preset];
+    if (!p) return;
+
+    // Active class
+    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    // Animer vers les nouvelles valeurs
+    const from = { ...state };
+    const to   = { ...p };
+    const dur  = 500; // ms
+    const t0   = performance.now();
+
+    function animate(now) {
+      const frac = Math.min((now - t0) / dur, 1);
+      const ease = frac < 0.5
+        ? 2*frac*frac
+        : -1 + (4 - 2*frac)*frac; // easeInOut
+
+      state.r  = from.r  + (to.r  - from.r)  * ease;
+      state.K  = from.K  + (to.K  - from.K)  * ease;
+      state.N0 = from.N0 + (to.N0 - from.N0) * ease;
+
+      // Sync sliders
+      document.getElementById('sl_r').value  = state.r;
+      document.getElementById('sl_K').value  = state.K;
+      document.getElementById('sl_N0').value = state.N0;
+      document.getElementById('lbl_r').textContent  = state.r.toFixed(2) + ' h⁻¹';
+      document.getElementById('lbl_K').textContent  = state.K.toFixed(1) + ' DO';
+      document.getElementById('lbl_N0').textContent = state.N0.toFixed(2) + ' DO';
+
+      updateMetrics();
+      draw();
+      if (frac < 1) requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+  });
+});
+
+// ── Données bruitées — boutons ────────────────────────────────────────────────
+document.getElementById('sl_npts').addEventListener('input', function() {
+  document.getElementById('lbl_npts').textContent = this.value;
+});
+
+document.getElementById('btn_generate').addEventListener('click', () => {
+  const n = parseInt(document.getElementById('sl_npts').value);
+  noisyPoints = generateNoisyPoints(n);
+  draw();
+});
+//document.getElementById('btn_generate_noisy').addEventListener('click', () => {
+ // const n = parseInt(document.getElementById('sl_npts').value);
+//  noisyPoints = generateNoisyPoints(n, true);
+//  draw();
+//});
+
+//document.getElementById('btn_generate_clean').addEventListener('click', () => {
+//  const n = parseInt(document.getElementById('sl_npts').value);
+//  noisyPoints = generateNoisyPoints(n, false);
+//  draw();
+//});
+
+document.getElementById('btn_clear').addEventListener('click', () => {
+  noisyPoints = [];
+  draw();
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', resize);
+onSlider();
+resize();
+</script>
+</body>
+</html>
