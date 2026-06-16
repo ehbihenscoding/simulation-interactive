@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Log-vraisemblance — modèle logistique</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bleu:    #003C78;
+    --bleuCl:  #E8EFF7;
+    --vert:    #00643C;
+    --orange:  #D26400;
+    --gris:    #505050;
+    --fond:    #F7F9FC;
+    --blanc:   #FFFFFF;
+    --txt:     #1A1A2E;
+  }
+
+  html, body {
+    height: 100%; width: 100%;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--fond);
+    color: var(--txt);
+    overflow: hidden;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100vh;
+    max-height: 100vh;
+    padding: 10px 16px 8px;
+    gap: 8px;
+  }
+
+  header {
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  header h1 {
+    font-size: 1.05rem; font-weight: 700; color: var(--bleu);
+    letter-spacing: -0.01em;
+  }
+  header .subtitle {
+    font-size: 0.78rem; color: var(--gris); font-style: italic;
+  }
+
+  .body {
+    display: grid;
+    grid-template-columns: 1fr 270px;
+    gap: 12px;
+    min-height: 0;
+  }
+
+  .canvas-wrap {
+    background: var(--blanc);
+    border-radius: 8px;
+    border: 1px solid #D0DCF0;
+    padding: 8px 12px 4px;
+    display: flex; flex-direction: column;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  canvas { flex: 1; width: 100% !important; }
+
+  .controls {
+    display: flex; flex-direction: column; gap: 8px;
+    overflow-y: auto;
+  }
+
+  .ctrl-card {
+    background: var(--blanc);
+    border-radius: 8px;
+    border: 1px solid #D0DCF0;
+    padding: 10px 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    flex-shrink: 0;
+  }
+
+  .ctrl-card h2 {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--gris);
+    margin-bottom: 8px; padding-bottom: 4px;
+    border-bottom: 1px solid #E0E8F2;
+  }
+
+  .slider-row {
+    display: grid;
+    grid-template-columns: 18px 1fr 46px;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+  .slider-row:last-child { margin-bottom: 0; }
+  .slider-row .param-sym { font-size: 0.85rem; font-weight: 700; text-align: center; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%; height: 4px;
+    border-radius: 2px;
+    outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .r-color  { color: var(--bleu); }
+  .K-color  { color: var(--vert); }
+  .N0-color { color: var(--orange); }
+
+  input.r-range  { background: #C5D8EF; }
+  input.r-range::-webkit-slider-thumb  { background: var(--bleu); }
+  input.K-range  { background: #B8DFCC; }
+  input.K-range::-webkit-slider-thumb  { background: var(--vert); }
+  input.N0-range { background: #F4CEAE; }
+  input.N0-range::-webkit-slider-thumb { background: var(--orange); }
+
+  .val-badge {
+    font-size: 0.75rem; font-weight: 700;
+    text-align: right; white-space: nowrap;
+  }
+
+  .metric {
+    background: var(--fond);
+    border: 1px solid #D8E5F3;
+    border-radius: 6px;
+    padding: 5px 6px;
+    text-align: center;
+  }
+  .metric .mval { font-size: 0.82rem; font-weight: 700; display: block; }
+  .metric .mlbl { font-size: 0.60rem; color: var(--gris); display: block; margin-top: 1px; }
+
+  footer {
+    font-size: 0.65rem; color: var(--gris);
+    display: flex; justify-content: space-between;
+    padding: 0 2px;
+  }
+  .hint { font-style: italic; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <h1>Log-vraisemblance du modèle logistique</h1>
+    <span class="subtitle">ℓ(θ | données) sous hypothèse de bruit gaussien</span>
+  </header>
+
+  <div class="body">
+
+    <!-- Zone graphiques -->
+    <div style="display:flex; flex-direction:column; gap:8px; min-height:0;">
+
+      <!-- Courbe logistique + points -->
+      <div class="canvas-wrap" style="flex:0 0 38%;">
+        <canvas id="cvs2"></canvas>
+      </div>
+
+      <!-- 3 heatmaps -->
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; flex:1; min-height:0;">
+        <div class="canvas-wrap" style="padding:4px 6px;">
+          <div style="font-size:0.68rem; font-weight:700; color:var(--gris); text-align:center; margin-bottom:2px;">r  vs  K</div>
+          <canvas id="hm_rK" style="flex:1; width:100% !important;"></canvas>
+        </div>
+        <div class="canvas-wrap" style="padding:4px 6px;">
+          <div style="font-size:0.68rem; font-weight:700; color:var(--gris); text-align:center; margin-bottom:2px;">r  vs  N₀</div>
+          <canvas id="hm_rN" style="flex:1; width:100% !important;"></canvas>
+        </div>
+        <div class="canvas-wrap" style="padding:4px 6px;">
+          <div style="font-size:0.68rem; font-weight:700; color:var(--gris); text-align:center; margin-bottom:2px;">K  vs  N₀</div>
+          <canvas id="hm_KN" style="flex:1; width:100% !important;"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contrôles -->
+    <div class="controls">
+
+      <!-- Paramètres du modèle -->
+      <div class="ctrl-card">
+        <h2>Paramètres du modèle</h2>
+        <div class="slider-row">
+          <span class="param-sym r-color">r</span>
+          <input id="p2_r" class="r-range" type="range" min="0.1" max="3.0" step="0.05" value="1.0">
+          <span class="val-badge r-color" id="p2_lbl_r">1.00</span>
+        </div>
+        <div class="slider-row">
+          <span class="param-sym K-color">K</span>
+          <input id="p2_K" class="K-range" type="range" min="0.5" max="6.0" step="0.1" value="3.0">
+          <span class="val-badge K-color" id="p2_lbl_K">3.0</span>
+        </div>
+        <div class="slider-row">
+          <span class="param-sym N0-color">N₀</span>
+          <input id="p2_N0" class="N0-range" type="range" min="0.02" max="1.5" step="0.02" value="0.05">
+          <span class="val-badge N0-color" id="p2_lbl_N0">0.05</span>
+        </div>
+      </div>
+
+      <!-- Données expérimentales -->
+      <div class="ctrl-card">
+        <h2>Données expérimentales</h2>
+        <div style="font-size:0.68rem; color:var(--gris); margin-bottom:6px; line-height:1.4;">
+          N₀=0.48 · K=4.3 · r=1
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+          <label style="font-size:0.67rem; color:var(--gris); white-space:nowrap;">N pts :</label>
+          <input id="p2_npts" type="range" min="5" max="40" step="1" value="18"
+            style="flex:1; height:4px; -webkit-appearance:none; border-radius:2px; background:#EAACAC; outline:none; cursor:pointer;">
+          <span id="p2_lbl_npts" style="font-size:0.72rem; font-weight:700; color:#C0392B; min-width:20px; text-align:right;">18</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+          <label style="font-size:0.67rem; color:var(--gris); white-space:nowrap;">σ bruit :</label>
+          <input id="p2_sigma" type="range" min="0.05" max="1.0" step="0.05" value="0.2"
+            style="flex:1; height:4px; -webkit-appearance:none; border-radius:2px; background:#EAACAC; outline:none; cursor:pointer;">
+          <span id="p2_lbl_sigma" style="font-size:0.72rem; font-weight:700; color:#C0392B; min-width:28px; text-align:right;">0.20</span>
+        </div>
+        <button id="p2_btn_gen" style="
+          width:100%; font-size:0.70rem; font-weight:700;
+          padding:5px 6px; border:1.5px solid #C0392B; border-radius:5px;
+          cursor:pointer; background:transparent; color:#C0392B;
+          transition: background 0.15s, color 0.15s;
+        "
+        onmouseover="this.style.background='#C0392B';this.style.color='white';"
+        onmouseout="this.style.background='transparent';this.style.color='#C0392B';"
+        >⊕ Générer / Régénérer</button>
+      </div>
+
+      <!-- Log-vraisemblance courante -->
+      <div class="ctrl-card">
+        <h2>Log-vraisemblance courante</h2>
+        <div style="background:var(--bleuCl); border-left:3px solid var(--bleu); border-radius:0 6px 6px 0; padding:8px 10px;">
+          <div style="font-size:0.68rem; color:var(--gris); margin-bottom:2px;">ℓ(r, K, N₀ | données)</div>
+          <div id="p2_ll_val" style="font-size:1.1rem; font-weight:700; color:var(--bleu); font-family:monospace;">—</div>
+        </div>
+        <div style="font-size:0.62rem; color:var(--gris); margin-top:5px; line-height:1.4; font-style:italic;">
+          ℓ = −Σ (N_obs − N_th)² / (2σ²)
+        </div>
+      </div>
+
+      <!-- Maximum de vraisemblance -->
+      <div class="ctrl-card">
+        <h2>Maximum de vraisemblance</h2>
+        <button id="p2_btn_mle" style="
+          width:100%; font-size:0.70rem; font-weight:700;
+          padding:5px 6px; border:1.5px solid #7B3F9E; border-radius:5px;
+          cursor:pointer; background:transparent; color:#7B3F9E;
+          transition: background 0.15s, color 0.15s; margin-bottom:6px;
+        "
+        onmouseover="this.style.background='#7B3F9E';this.style.color='white';"
+        onmouseout="this.style.background='transparent';this.style.color='#7B3F9E';"
+        >👁 Révéler le maximum</button>
+        <div id="p2_mle_vals" style="display:none;">
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; margin-top:4px;">
+            <div class="metric"><span class="mval r-color" id="mle_r">—</span><span class="mlbl">r*</span></div>
+            <div class="metric"><span class="mval K-color" id="mle_K">—</span><span class="mlbl">K*</span></div>
+            <div class="metric"><span class="mval N0-color" id="mle_N0">—</span><span class="mlbl">N₀*</span></div>
+          </div>
+        </div>
+        <button id="p2_btn_hide_mle" style="
+          display:none; width:100%; font-size:0.68rem; font-weight:600; margin-top:4px;
+          padding:4px 6px; border:1.5px solid #aaa; border-radius:5px;
+          cursor:pointer; background:transparent; color:#888;
+        ">Masquer</button>
+      </div>
+
+    </div><!-- /controls -->
+  </div><!-- /body -->
+
+  <footer>
+    <span class="hint">Les heatmaps se recalculent en temps réel · le 3ᵉ paramètre est fixé par les sliders</span>
+    <span>AgroParisTech · Leçon MCF</span>
+  </footer>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+const p2State = { r: 1.0, K: 3.0, N0: 0.05, sigma: 0.2 };
+let p2Points   = [];
+let mleVisible = false;
+let mleResult  = null;
+
+const T_MAX2 = 14;
+const NOISY2 = { r: 1.0, K: 4.3, N0: 0.48 };
+const GRID   = 50;
+
+// ── Modèle logistique ─────────────────────────────────────────────────────────
+function logistic2(t, r, K, N0) {
+  const A = (K - N0) / N0;
+  return K / (1 + A * Math.exp(-r * t));
+}
+
+// ── Génération données bruitées ───────────────────────────────────────────────
+function p2Generate() {
+  const n     = parseInt(document.getElementById('p2_npts').value);
+  const sigma = p2State.sigma;
+  const { r, K, N0 } = NOISY2;
+  p2Points = [];
+  for (let i = 0; i < n; i++) {
+    const t   = Math.random() * T_MAX2;
+    const Nth = logistic2(t, r, K, N0);
+    const bruit = (Math.random() * 2 - 1) * sigma * 1.4 +
+                  Nth * (Math.random() * 2 - 1) * sigma * 0.7;
+    p2Points.push({ t, N: Math.max(0.01, Nth + bruit) });
+  }
+  p2Points.sort((a, b) => a.t - b.t);
+  mleResult  = null;
+  mleVisible = false;
+  document.getElementById('p2_mle_vals').style.display     = 'none';
+  document.getElementById('p2_btn_hide_mle').style.display = 'none';
+}
+
+// ── Log-vraisemblance ─────────────────────────────────────────────────────────
+function logLik(r, K, N0, sigma, pts) {
+  if (K <= 0 || N0 <= 0 || r <= 0 || sigma <= 0) return -Infinity;
+  let ll = 0;
+  const inv2s2 = 1 / (2 * sigma * sigma);
+  for (const { t, N } of pts) {
+    const Nth = logistic2(t, r, K, N0);
+    ll -= (N - Nth) * (N - Nth) * inv2s2;
+  }
+  return ll;
+}
+
+// ── MLE grille grossière ──────────────────────────────────────────────────────
+function computeMLE() {
+  const rRange  = { min: 0.1,  max: 3.0, n: 30 };
+  const KRange  = { min: 0.5,  max: 6.0, n: 30 };
+  const N0Range = { min: 0.02, max: 1.5, n: 30 };
+  const sigma = p2State.sigma;
+  let best = -Infinity, br = 1, bK = 3, bN0 = 0.05;
+  for (let i = 0; i < rRange.n; i++) {
+    const r = rRange.min + i/(rRange.n-1)*(rRange.max - rRange.min);
+    for (let j = 0; j < KRange.n; j++) {
+      const K = KRange.min + j/(KRange.n-1)*(KRange.max - KRange.min);
+      for (let k = 0; k < N0Range.n; k++) {
+        const N0 = N0Range.min + k/(N0Range.n-1)*(N0Range.max - N0Range.min);
+        const ll = logLik(r, K, N0, sigma, p2Points);
+        if (ll > best) { best = ll; br = r; bK = K; bN0 = N0; }
+      }
+    }
+  }
+  mleResult = { r: br, K: bK, N0: bN0, ll: best };
+}
+
+// ── Colormap Turbo ────────────────────────────────────────────────────────────
+function turbo(t) {
+  t = Math.max(0, Math.min(1, t));
+  const kR = [0.1357,  4.5974, -14.5165,  22.5478, -16.3109,  4.5270];
+  const kG = [0.0914,  2.8160,   0.4185, -10.7648,  11.7293, -4.2983];
+  const kB = [0.1067,  8.4425, -28.9571,  43.4721, -30.4022,  7.8441];
+  const poly = (k, x) => Math.max(0, Math.min(1,
+    k[0]+x*(k[1]+x*(k[2]+x*(k[3]+x*(k[4]+x*k[5]))))));
+  return `rgb(${Math.round(255*poly(kR,t))},${Math.round(255*poly(kG,t))},${Math.round(255*poly(kB,t))})`;
+}
+
+// ── Canvas ────────────────────────────────────────────────────────────────────
+const cvs2 = document.getElementById('cvs2');
+const ctx2 = cvs2.getContext('2d');
+
+const hmCanvases = {
+  rK: document.getElementById('hm_rK'),
+  rN: document.getElementById('hm_rN'),
+  KN: document.getElementById('hm_KN'),
+};
+const hmCtx = {
+  rK: hmCanvases.rK.getContext('2d'),
+  rN: hmCanvases.rN.getContext('2d'),
+  KN: hmCanvases.KN.getContext('2d'),
+};
+
+function p2Resize() {
+  cvs2.width  = cvs2.parentElement.clientWidth  - 24;
+  cvs2.height = cvs2.parentElement.clientHeight - 28;
+  Object.keys(hmCanvases).forEach(k => {
+    const el = hmCanvases[k];
+    el.width  = el.parentElement.clientWidth  - 12;
+    el.height = el.parentElement.clientHeight - 28;
+  });
+  p2Draw();
+}
+
+// ── Dessin courbe principale ──────────────────────────────────────────────────
+function drawCurve2() {
+  const W = cvs2.width, H = cvs2.height;
+  const PAD = { l: 48, r: 16, t: 14, b: 32 };
+  const xMax = T_MAX2, yMax = 5.5;
+  const px = x => PAD.l + x / xMax * (W - PAD.l - PAD.r);
+  const py = y => H - PAD.b - y / yMax * (H - PAD.t - PAD.b);
+
+  ctx2.clearRect(0, 0, W, H);
+  ctx2.fillStyle = '#fff'; ctx2.fillRect(0, 0, W, H);
+
+  // Grille
+  ctx2.strokeStyle = '#E4EBF5'; ctx2.lineWidth = 1;
+  for (let yv = 0; yv <= 5; yv += 0.5) {
+    ctx2.beginPath(); ctx2.moveTo(px(0), py(yv)); ctx2.lineTo(px(xMax), py(yv)); ctx2.stroke();
+    if (yv % 1 === 0) {
+      ctx2.fillStyle = '#888'; ctx2.font = '9px system-ui'; ctx2.textAlign = 'right';
+      ctx2.fillText(yv.toFixed(1), px(0) - 3, py(yv) + 3);
+    }
+  }
+  for (let xv = 0; xv <= xMax; xv += 2) {
+    ctx2.beginPath(); ctx2.moveTo(px(xv), py(0)); ctx2.lineTo(px(xv), py(yMax)); ctx2.stroke();
+    ctx2.fillStyle = '#888'; ctx2.font = '9px system-ui'; ctx2.textAlign = 'center';
+    ctx2.fillText(xv, px(xv), py(0) + 12);
+  }
+
+  // Axes
+  ctx2.strokeStyle = '#333'; ctx2.lineWidth = 1.5;
+  ctx2.beginPath(); ctx2.moveTo(px(0), py(0)); ctx2.lineTo(px(xMax)+6, py(0)); ctx2.stroke();
+  ctx2.beginPath(); ctx2.moveTo(px(0), py(0)); ctx2.lineTo(px(0), py(yMax)-6); ctx2.stroke();
+  ctx2.fillStyle = '#333'; ctx2.font = 'italic 10px serif'; ctx2.textAlign = 'center';
+  ctx2.fillText('t (h)', px(xMax/2), py(0) + 24);
+
+  // Courbe vraie (pointillés rouges)
+  if (p2Points.length > 0) {
+    ctx2.strokeStyle = 'rgba(192,57,43,0.4)'; ctx2.lineWidth = 1.5; ctx2.setLineDash([4,4]);
+    ctx2.beginPath(); let fst = true;
+    for (let i = 0; i <= 300; i++) {
+      const t = xMax * i / 300;
+      const N = logistic2(t, NOISY2.r, NOISY2.K, NOISY2.N0);
+      if (fst) { ctx2.moveTo(px(t), py(N)); fst = false; } else ctx2.lineTo(px(t), py(N));
+    }
+    ctx2.stroke(); ctx2.setLineDash([]);
+  }
+
+  // Courbe modèle courant
+  const { r, K, N0 } = p2State;
+  ctx2.strokeStyle = '#003C78'; ctx2.lineWidth = 2.5; ctx2.setLineDash([]);
+  ctx2.beginPath(); let first2 = true;
+  for (let i = 0; i <= 300; i++) {
+    const t = xMax * i / 300;
+    const N = logistic2(t, r, K, N0);
+    if (N > yMax * 1.1) continue;
+    if (first2) { ctx2.moveTo(px(t), py(N)); first2 = false; } else ctx2.lineTo(px(t), py(N));
+  }
+  ctx2.stroke();
+
+  // Asymptote K
+  if (K <= yMax) {
+    ctx2.strokeStyle = '#00643C'; ctx2.lineWidth = 1.2; ctx2.setLineDash([5,4]);
+    ctx2.beginPath(); ctx2.moveTo(px(0), py(K)); ctx2.lineTo(px(xMax), py(K)); ctx2.stroke();
+    ctx2.setLineDash([]);
+    ctx2.fillStyle = '#00643C'; ctx2.font = 'bold 9px system-ui'; ctx2.textAlign = 'right';
+    ctx2.fillText('K='+K.toFixed(1), px(xMax)-2, py(K)-3);
+  }
+
+  // Points bruités
+  p2Points.forEach(({ t, N }) => {
+    if (N > yMax * 1.15) return;
+    ctx2.beginPath(); ctx2.arc(px(t), py(N), 4, 0, 2*Math.PI);
+    ctx2.fillStyle = 'rgba(192,57,43,0.72)'; ctx2.fill();
+    ctx2.strokeStyle = '#7B1A0E'; ctx2.lineWidth = 0.8; ctx2.stroke();
+  });
+
+  // Légende
+  const lx = px(xMax) - 120, ly = py(yMax) + 10;
+  ctx2.font = '9px system-ui';
+  ctx2.strokeStyle = '#003C78'; ctx2.lineWidth = 2; ctx2.setLineDash([]);
+  ctx2.beginPath(); ctx2.moveTo(lx, ly); ctx2.lineTo(lx+14, ly); ctx2.stroke();
+  ctx2.fillStyle = '#444'; ctx2.textAlign = 'left'; ctx2.fillText('Modèle courant', lx+17, ly+3);
+  ctx2.strokeStyle = 'rgba(192,57,43,0.5)'; ctx2.lineWidth = 1.5; ctx2.setLineDash([4,3]);
+  ctx2.beginPath(); ctx2.moveTo(lx, ly+12); ctx2.lineTo(lx+14, ly+12); ctx2.stroke();
+  ctx2.setLineDash([]); ctx2.fillStyle = '#444'; ctx2.fillText('Vrai modèle', lx+17, ly+15);
+}
+
+// ── Dessin heatmap ────────────────────────────────────────────────────────────
+function drawHeatmap(key) {
+  const canvas = hmCanvases[key];
+  const c = hmCtx[key];
+  const W = canvas.width, H = canvas.height;
+  const PAD = { l: 30, r: 8, t: 6, b: 22 };
+  const plotW = W - PAD.l - PAD.r;
+  const plotH = H - PAD.t - PAD.b;
+  if (plotW <= 0 || plotH <= 0) return;
+
+  const { r, K, N0, sigma } = p2State;
+  const pts = p2Points;
+
+  let xParam, yParam, xFixed, yFixed, xLabel, yLabel;
+  if (key === 'rK') { xParam='r'; yParam='K';  xFixed=r; yFixed=K;  xLabel='r'; yLabel='K'; }
+  if (key === 'rN') { xParam='r'; yParam='N0'; xFixed=r; yFixed=N0; xLabel='r'; yLabel='N₀'; }
+  if (key === 'KN') { xParam='K'; yParam='N0'; xFixed=K; yFixed=N0; xLabel='K'; yLabel='N₀'; }
+
+  const ranges = {
+    r:  { min: 0.1,  max: 3.0 },
+    K:  { min: 0.5,  max: 6.0 },
+    N0: { min: 0.02, max: 1.5 },
+  };
+  const xRange = ranges[xParam], yRange = ranges[yParam];
+
+  // Calcul grille
+  const grid = new Float32Array(GRID * GRID);
+  let llMin = Infinity, llMax = -Infinity;
+
+  for (let j = 0; j < GRID; j++) {
+    const xVal = xRange.min + j / (GRID-1) * (xRange.max - xRange.min);
+    for (let i = 0; i < GRID; i++) {
+      const yVal = yRange.min + i / (GRID-1) * (yRange.max - yRange.min);
+      let ll;
+      if (pts.length === 0) { ll = 0; } else {
+        let pr = r, pK = K, pN0 = N0;
+        if (xParam === 'r') pr = xVal; else if (xParam === 'K') pK = xVal; else pN0 = xVal;
+        if (yParam === 'r') pr = yVal; else if (yParam === 'K') pK = yVal; else pN0 = yVal;
+        ll = logLik(pr, pK, pN0, sigma, pts);
+      }
+      grid[j * GRID + i] = ll;
+      if (ll > llMax) llMax = ll;
+      if (ll < llMin && isFinite(ll)) llMin = ll;
+    }
+  }
+  llMin = Math.max(llMin, llMax - 200);
+
+  c.clearRect(0, 0, W, H);
+  c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
+
+  const cellW = plotW / GRID, cellH = plotH / GRID;
+  for (let j = 0; j < GRID; j++) {
+    for (let i = 0; i < GRID; i++) {
+      const ll = grid[j * GRID + i];
+      const t  = llMax === llMin ? 1 : (ll - llMin) / (llMax - llMin);
+      c.fillStyle = turbo(t);
+      c.fillRect(PAD.l + j*cellW, PAD.t + (GRID-1-i)*cellH, cellW+0.5, cellH+0.5);
+    }
+  }
+
+  // Marqueur position courante (croix blanche)
+  const sx = PAD.l + (xFixed - xRange.min) / (xRange.max - xRange.min) * plotW;
+  const sy = PAD.t + (1 - (yFixed - yRange.min) / (yRange.max - yRange.min)) * plotH;
+  c.strokeStyle = 'white'; c.lineWidth = 2.5;
+  c.beginPath(); c.moveTo(sx-7, sy); c.lineTo(sx+7, sy); c.stroke();
+  c.beginPath(); c.moveTo(sx, sy-7); c.lineTo(sx, sy+7); c.stroke();
+  c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(sx-7, sy); c.lineTo(sx+7, sy); c.stroke();
+  c.beginPath(); c.moveTo(sx, sy-7); c.lineTo(sx, sy+7); c.stroke();
+
+  // Marqueur MLE
+  if (mleVisible && mleResult) {
+    const getF = (param) => {
+      const v = mleResult[param === 'N0' ? 'N0' : param];
+      const rng = ranges[param];
+      return (v - rng.min) / (rng.max - rng.min);
+    };
+    const mx = PAD.l + getF(xParam) * plotW;
+    const my = PAD.t + (1 - getF(yParam)) * plotH;
+    c.fillStyle = '#F0E040'; c.strokeStyle = '#333'; c.lineWidth = 1.2;
+    c.beginPath(); c.arc(mx, my, 6, 0, 2*Math.PI); c.fill(); c.stroke();
+    c.fillStyle = '#111'; c.font = 'bold 8px system-ui'; c.textAlign = 'center';
+    c.fillText('MLE', mx, my - 9);
+  }
+
+  // Cadre axes
+  c.strokeStyle = '#555'; c.lineWidth = 1;
+  c.beginPath();
+  c.moveTo(PAD.l, PAD.t); c.lineTo(PAD.l, PAD.t+plotH); c.lineTo(PAD.l+plotW, PAD.t+plotH);
+  c.stroke();
+
+  // Graduations X
+  c.fillStyle = '#666'; c.font = '8px system-ui'; c.textAlign = 'center';
+  for (let k = 0; k <= 4; k++) {
+    const xv = xRange.min + k/4 * (xRange.max - xRange.min);
+    const cx = PAD.l + k/4 * plotW;
+    c.beginPath(); c.moveTo(cx, PAD.t+plotH); c.lineTo(cx, PAD.t+plotH+3); c.stroke();
+    c.fillText(xv.toFixed(1), cx, PAD.t+plotH+11);
+  }
+  c.fillStyle = '#555'; c.font = 'italic 8px serif'; c.textAlign = 'center';
+  c.fillText(xLabel, PAD.l+plotW/2, H-2);
+
+  // Graduations Y
+  c.fillStyle = '#666'; c.font = '8px system-ui'; c.textAlign = 'right';
+  for (let k = 0; k <= 3; k++) {
+    const yv = yRange.min + k/3 * (yRange.max - yRange.min);
+    const cy = PAD.t + (1-k/3) * plotH;
+    c.beginPath(); c.moveTo(PAD.l, cy); c.lineTo(PAD.l-3, cy); c.stroke();
+    c.fillText(yv.toFixed(1), PAD.l-4, cy+3);
+  }
+  c.save();
+  c.translate(10, PAD.t+plotH/2);
+  c.rotate(-Math.PI/2);
+  c.fillStyle = '#555'; c.font = 'italic 8px serif'; c.textAlign = 'center';
+  c.fillText(yLabel, 0, 0);
+  c.restore();
+
+  // Barre de couleur
+  const barX = PAD.l+plotW+2, barH2 = plotH, barW = 5;
+  if (barX+barW < W) {
+    for (let i = 0; i < barH2; i++) {
+      c.fillStyle = turbo(1 - i/barH2);
+      c.fillRect(barX, PAD.t+i, barW, 1);
+    }
+  }
+}
+
+// ── Mise à jour globale ───────────────────────────────────────────────────────
+function p2Draw() {
+  drawCurve2();
+  drawHeatmap('rK');
+  drawHeatmap('rN');
+  drawHeatmap('KN');
+  const ll = p2Points.length > 0
+    ? logLik(p2State.r, p2State.K, p2State.N0, p2State.sigma, p2Points)
+    : NaN;
+  document.getElementById('p2_ll_val').textContent = isFinite(ll) ? ll.toFixed(2) : '—';
+}
+
+function p2Update() {
+  p2State.r     = parseFloat(document.getElementById('p2_r').value);
+  p2State.K     = parseFloat(document.getElementById('p2_K').value);
+  p2State.N0    = parseFloat(document.getElementById('p2_N0').value);
+  p2State.sigma = parseFloat(document.getElementById('p2_sigma').value);
+  document.getElementById('p2_lbl_r').textContent     = p2State.r.toFixed(2);
+  document.getElementById('p2_lbl_K').textContent     = p2State.K.toFixed(1);
+  document.getElementById('p2_lbl_N0').textContent    = p2State.N0.toFixed(2);
+  document.getElementById('p2_lbl_sigma').textContent = p2State.sigma.toFixed(2);
+  document.getElementById('p2_lbl_npts').textContent  = document.getElementById('p2_npts').value;
+  p2Draw();
+}
+
+// ── Écouteurs ─────────────────────────────────────────────────────────────────
+['p2_r','p2_K','p2_N0','p2_sigma','p2_npts'].forEach(id => {
+  document.getElementById(id).addEventListener('input', p2Update);
+});
+
+document.getElementById('p2_btn_gen').addEventListener('click', () => {
+  p2State.sigma = parseFloat(document.getElementById('p2_sigma').value);
+  p2Generate();
+  p2Update();
+});
+
+document.getElementById('p2_btn_mle').addEventListener('click', () => {
+  if (p2Points.length === 0) return;
+  if (!mleResult) computeMLE();
+  mleVisible = true;
+  document.getElementById('mle_r').textContent  = mleResult.r.toFixed(2);
+  document.getElementById('mle_K').textContent  = mleResult.K.toFixed(1);
+  document.getElementById('mle_N0').textContent = mleResult.N0.toFixed(2);
+  document.getElementById('p2_mle_vals').style.display     = 'grid';
+  document.getElementById('p2_btn_hide_mle').style.display = 'block';
+  p2Draw();
+});
+
+document.getElementById('p2_btn_hide_mle').addEventListener('click', () => {
+  mleVisible = false;
+  document.getElementById('p2_mle_vals').style.display     = 'none';
+  document.getElementById('p2_btn_hide_mle').style.display = 'none';
+  p2Draw();
+});
+
+window.addEventListener('resize', () => { p2Resize(); });
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+p2Generate();
+setTimeout(() => { p2Resize(); }, 0);
+</script>
+</body>
+</html>
