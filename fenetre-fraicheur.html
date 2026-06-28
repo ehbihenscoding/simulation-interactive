@@ -3,256 +3,389 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Fenêtre Fraîcheur</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<title>Optimiseur Fenêtres — Modèle Thermique</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; }
-  body { font-family: system-ui, -apple-system, sans-serif; color: #1a1a2e; background: #fafafa; padding: 1.5rem; }
-  .wrap { max-width: 720px; margin: 0 auto; }
-  h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
-  .sub { color: #666; font-size: .88rem; margin-top: 4px; }
-  .form { display: flex; gap: 12px; flex-wrap: wrap; margin: 1.5rem 0; }
-  .field { flex: 1; min-width: 140px; }
-  .lbl { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #555; display: block; margin-bottom: 4px; }
-  input[type=text] { display: block; width: 100%; padding: 10px 12px; border: 1.5px solid #d0d0d0; border-radius: 8px; font-size: 1rem; outline: none; }
-  select { display: block; width: 100%; padding: 10px 12px; border: 1.5px solid #d0d0d0; border-radius: 8px; font-size: .92rem; outline: none; background: #fff; }
-  .slider-row { display: flex; align-items: center; gap: 8px; }
-  .slider-row input { flex: 1; }
-  .temp-val { font-weight: 700; font-size: 1.05rem; min-width: 50px; text-align: right; }
-  .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; background: #2563eb; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background .2s; }
-  .btn:hover:not(:disabled) { background: #1d4ed8; }
-  .btn:disabled { background: #aaa; cursor: wait; }
-  .err { color: #dc2626; margin-top: 12px; font-size: .9rem; }
-  .box { border-radius: 10px; padding: 16px 20px; margin: 1.5rem 0; }
-  .box-ok { background: #ecfdf5; border: 1px solid #86efac; color: #065f46; }
-  .box-no { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
-  .box-warn { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; }
-  .box p { margin: 0; }
-  .box .main { font-weight: 700; font-size: 1.05rem; }
-  .box .detail { margin-top: 6px; font-size: .86rem; opacity: .9; }
-  .chart-label { font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #555; margin-bottom: 8px; }
-  canvas { width: 100% !important; max-height: 280px; }
-  .legend { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-top: 8px; font-size: .78rem; color: #555; }
-  .dot { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
-  details { margin-top: 1.5rem; }
-  summary { cursor: pointer; font-size: .88rem; font-weight: 600; color: #444; }
-  table { width: 100%; border-collapse: collapse; font-size: .78rem; margin-top: 8px; }
-  th { padding: 5px 6px; border-bottom: 2px solid #ddd; text-align: left; white-space: nowrap; }
-  td { padding: 4px 6px; border-bottom: 1px solid #eee; }
-  .r { text-align: right; }
-  .c { text-align: center; }
-  tr.open-row { background: #f0fdf4; }
-  .model-info { margin-top: 1rem; padding: 14px 18px; background: #f1f5f9; border-radius: 8px; font-size: .78rem; color: #475569; line-height: 1.6; }
-  .model-info strong { color: #334155; }
-  .footnote { margin-top: 1.5rem; font-size: .72rem; color: #999; line-height: 1.5; }
-  #results { display: none; }
-  .comfort-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 3px; }
+  :root { --bg:#f8f7f4; --fg:#1a1a1a; --card:#fff; --border:#e0ddd8; --accent:#2563eb; --accent2:#f97316; --accent3:#a855f7; --ok:#22c55e; --warn:#f59e0b; --danger:#ef4444; }
+  * { box-sizing:border-box; margin:0; }
+  body { font-family:'Segoe UI',system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--fg); line-height:1.5; padding:1rem; }
+  .wrap { max-width:860px; margin:auto; }
+  h1 { font-size:1.4rem; font-weight:700; margin-bottom:.2rem; }
+  .sub { font-size:.82rem; color:#777; margin-bottom:1.2rem; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:1.2rem; margin-bottom:1rem; }
+  label { display:block; font-size:.82rem; font-weight:600; color:#555; margin-bottom:.3rem; }
+  input[type=text],select { width:100%; padding:.5rem .7rem; border:1px solid var(--border); border-radius:6px; font-size:.95rem; }
+  .row { display:flex; gap:.8rem; flex-wrap:wrap; }
+  .row>div { flex:1; min-width:140px; }
+  input[type=number] { width:100%; padding:.5rem .7rem; border:1px solid var(--border); border-radius:6px; font-size:.95rem; -moz-appearance:textfield; }
+  input[type=number]::-webkit-inner-spin-button { opacity:1; }
+  .slider-row { display:flex; align-items:center; gap:.5rem; }
+  .slider-row input[type=range] { flex:1; }
+  .preset-btn { width:auto; padding:.3rem .7rem; font-size:.78rem; background:#eee; color:#333; border:1px solid var(--border); border-radius:5px; font-weight:500; margin:0; cursor:pointer; }
+  .preset-btn:hover { background:#ddd; }
+  button { width:100%; padding:.7rem; background:var(--accent); color:#fff; border:none; border-radius:8px; font-size:1rem; font-weight:600; cursor:pointer; margin-top:.5rem; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .box { border-radius:8px; padding:1rem; margin-bottom:1rem; }
+  .box-ok { background:#f0fdf4; border:1px solid #bbf7d0; }
+  .box-warn { background:#fffbeb; border:1px solid #fde68a; }
+  .box p.main { font-size:1.05rem; font-weight:600; }
+  .box p.detail { font-size:.85rem; color:#555; margin-top:.3rem; }
+  #errMsg { color:var(--danger); font-size:.85rem; margin-top:.4rem; }
+  #results { display:none; }
+  .chart-wrap { position:relative; height:320px; margin:1rem 0; }
+  table { width:100%; border-collapse:collapse; font-size:.78rem; margin-top:.5rem; }
+  th,td { padding:5px 6px; border-bottom:1px solid #eee; }
+  th { text-align:left; font-weight:600; border-bottom:2px solid #ccc; }
+  .r { text-align:right; }
+  .c { text-align:center; }
+  .open-row { background:#f0fdf4; }
+  .comfort-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:-1px; }
+  details { margin-top:1rem; }
+  summary { cursor:pointer; font-size:.85rem; font-weight:600; color:#444; }
+  #modelInfo { font-size:.75rem; color:#888; margin-top:.8rem; line-height:1.6; }
+  .footer { font-size:.72rem; color:#aaa; margin-top:1.5rem; text-align:center; line-height:1.5; }
+  @media(max-width:500px){ .row{flex-direction:column;} .chart-wrap{height:250px;} }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>🪟 Fenêtre Fraîcheur</h1>
-  <p class="sub">Quand ouvrir pour rafraîchir au mieux votre logement — modèle thermique simple.</p>
+  <h1>🌡️ Optimiseur d'ouverture de fenêtres</h1>
+  <p class="sub">Modèle thermique avec ventilation naturelle (vent + tirage thermique) — données Open-Meteo</p>
 
-  <div class="form">
-    <div class="field">
-      <span class="lbl">Ville ou code postal</span>
-      <input type="text" id="postal" placeholder="ex : 22380 ou Saint-Cast-le-Guildo">
-    </div>
-    <div class="field">
-      <span class="lbl">Température intérieure actuelle</span>
-      <div class="slider-row">
-        <input type="range" id="tempSlider" min="18" max="40" step="0.5" value="28">
-        <span class="temp-val" id="tempVal">28°C</span>
+  <div class="card">
+    <div class="row">
+      <div style="flex:2">
+        <label for="postal">Lieu (code postal ou ville)</label>
+        <input type="text" id="postal" placeholder="ex : 92340 ou Paris">
+      </div>
+      <div style="flex:1;min-width:100px">
+        <label for="tempInput">T° intérieure</label>
+        <div style="position:relative">
+          <input type="number" id="tempInput" min="10" max="50" step="0.5" value="28" style="width:100%;padding-right:2rem">
+          <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#888;font-size:.9rem;pointer-events:none">°C</span>
+        </div>
       </div>
     </div>
-  </div>
-  <div class="form" style="margin-top:0">
-    <div class="field">
-      <span class="lbl">Type de bâtiment</span>
-      <select id="buildType">
-        <option value="light">Léger — cloisons fines, combles (inertie faible)</option>
-        <option value="medium" selected>Standard — appartement béton / maison parpaing</option>
-        <option value="heavy">Lourd — pierre, pisé, murs épais (inertie forte)</option>
-      </select>
+    <div class="row" style="margin-top:.6rem">
+      <div>
+        <label for="buildType">Type de bâtiment</label>
+        <select id="buildType">
+          <option value="light">Léger (ossature bois, cloisons)</option>
+          <option value="medium" selected>Standard (parpaing, béton)</option>
+          <option value="heavy">Lourd (brique pleine, béton épais)</option>
+          <option value="stone">Pierre massive (murs ≥50 cm)</option>
+        </select>
+      </div>
+      <div>
+        <label for="ventType">Mode de ventilation</label>
+        <select id="ventType">
+          <option value="single">Fenêtre simple (un côté)</option>
+          <option value="cross" selected>Courant d'air (deux côtés)</option>
+          <option value="strong">Ventilation forcée (ventilateur)</option>
+        </select>
+      </div>
     </div>
-    <div class="field">
-      <span class="lbl">Ventilation</span>
-      <select id="ventType">
-        <option value="single">Une fenêtre (ventilation simple)</option>
-        <option value="cross" selected>Courant d'air (fenêtres opposées)</option>
-        <option value="strong">Ventilation forcée (ventilateur + fenêtres)</option>
-      </select>
-    </div>
+    <button id="goBtn" onclick="analyze()">Analyser les prévisions</button>
+    <div id="errMsg"></div>
   </div>
-
-  <button class="btn" id="goBtn" onclick="analyze()">Analyser les prévisions</button>
-  <p class="err" id="errMsg"></p>
 
   <div id="results">
     <div id="recBox" class="box"></div>
-
-    <p class="chart-label" id="chartTitle"></p>
-    <canvas id="chart"></canvas>
-    <div class="legend">
-      <span><span class="dot" style="background:#f97316"></span>Intérieur simulé</span>
-      <span><span class="dot" style="background:#2563eb"></span>Extérieur</span>
-      <span><span class="dot" style="background:#8b5cf6"></span>Ressenti intérieur</span>
+    <div class="card">
+      <div class="chart-wrap"><canvas id="chart"></canvas></div>
     </div>
+    <div class="card">
+      <details>
+        <summary>Détail heure par heure</summary>
+        <div style="overflow-x:auto">
+          <table>
+            <thead><tr>
+              <th>Heure</th><th class="r">Ext.</th><th class="r">Vent</th>
+              <th class="r">Hum.</th><th class="r">GHI</th>
+              <th class="r">Int.</th><th class="r">Ressenti</th>
+              <th class="c">Confort</th><th class="r">ACH</th><th class="c">Fenêtres</th>
+            </tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </details>
+      <div id="modelInfo"></div>
+    </div>
+  </div>
 
-    <div id="modelInfo" class="model-info"></div>
-
-    <details>
-      <summary>Détail heure par heure</summary>
-      <div style="overflow-x:auto">
-        <table>
-          <thead><tr>
-            <th>Heure</th><th class="r">Ext.</th><th class="r">Vent</th><th class="r">Humid.</th>
-            <th class="r">Soleil</th><th class="r">Int.</th><th class="r">Ressenti</th>
-            <th class="c">Confort</th><th class="c">Fenêtres</th>
-          </tr></thead>
-          <tbody id="tbody"></tbody>
-        </table>
+  <div class="card" style="margin-top:.5rem">
+    <details id="advancedParams">
+      <summary style="cursor:pointer;font-size:.85rem;font-weight:600;color:#444">⚙️ Paramètres avancés — surface de fenêtre</summary>
+      <div style="margin-top:.8rem">
+        <p style="font-size:.78rem;color:#777;margin-bottom:.6rem">Surface totale d'ouverture effective (toutes fenêtres ouvertes combinées). Influe directement sur le débit d'air (ACH).</p>
+        <div class="row" style="align-items:end">
+          <div style="flex:1">
+            <label for="windowArea">Surface d'ouverture (m²)</label>
+            <div class="slider-row">
+              <input type="range" id="windowSlider" min="0.2" max="4.0" step="0.1" value="1.2">
+              <input type="number" id="windowArea" min="0.2" max="8" step="0.1" value="1.2" style="width:70px;padding:.35rem .5rem;font-size:.9rem">
+              <span style="font-size:.85rem;color:#888">m²</span>
+            </div>
+          </div>
+          <div style="flex:1">
+            <p id="windowHint" style="font-size:.78rem;color:#666;margin:0">≈ 2 fenêtres standard (60×100 cm)</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem">
+          <button type="button" class="preset-btn" onclick="setWindowArea(0.4)">Vasistas (0.4)</button>
+          <button type="button" class="preset-btn" onclick="setWindowArea(0.8)">1 fenêtre (0.8)</button>
+          <button type="button" class="preset-btn" onclick="setWindowArea(1.2)">2 fenêtres (1.2)</button>
+          <button type="button" class="preset-btn" onclick="setWindowArea(2.0)">Grandes fenêtres (2.0)</button>
+          <button type="button" class="preset-btn" onclick="setWindowArea(3.5)">Baie vitrée (3.5)</button>
+        </div>
       </div>
     </details>
-
-    <p class="footnote">Données météo : Open-Meteo (prévision horaire). Géocodage : Nominatim / OpenStreetMap.<br>
-    Le modèle reste une approximation — l'isolation réelle, l'orientation, le vitrage et l'ombrage ne sont pas pris en compte.</p>
   </div>
+
+  <p class="footer">
+    Météo : <a href="https://open-meteo.com/">Open-Meteo</a> · Géocodage : Nominatim / OpenStreetMap.<br>
+    Modèle de ventilation naturelle basé sur BS 5925 / ASHRAE (vent + tirage thermique combinés).<br>
+    Approximation — l'isolation, l'orientation, le vitrage et l'ombrage réels ne sont pas pris en compte.
+  </p>
 </div>
 
 <script>
-const slider = document.getElementById('tempSlider');
-const tempVal = document.getElementById('tempVal');
-slider.oninput = () => tempVal.textContent = slider.value + '°C';
 document.getElementById('postal').addEventListener('keydown', e => { if (e.key === 'Enter') analyze(); });
+
+// Window area sync
+const wSlider = document.getElementById('windowSlider');
+const wInput = document.getElementById('windowArea');
+const wHint = document.getElementById('windowHint');
+function updateWindowHint(v) {
+  v = parseFloat(v);
+  let txt = '';
+  if (v <= 0.3) txt = '≈ un vasistas entrebâillé';
+  else if (v <= 0.5) txt = '≈ 1 vasistas ouvert';
+  else if (v <= 0.9) txt = '≈ 1 fenêtre standard (60×100 cm)';
+  else if (v <= 1.4) txt = '≈ 2 fenêtres standard';
+  else if (v <= 2.2) txt = '≈ 2-3 grandes fenêtres';
+  else if (v <= 3.2) txt = '≈ grande baie vitrée ou porte-fenêtre';
+  else txt = '≈ très grande ouverture / plusieurs baies';
+  wHint.textContent = txt;
+}
+wSlider.oninput = () => { wInput.value = wSlider.value; updateWindowHint(wSlider.value); };
+wInput.oninput = () => { wSlider.value = Math.min(4, Math.max(0.2, wInput.value)); updateWindowHint(wInput.value); };
+function setWindowArea(v) { wSlider.value = Math.min(4, v); wInput.value = v; updateWindowHint(v); }
 
 let myChart = null;
 function fmtH(h) { return String(h).padStart(2,'0') + 'h'; }
 function round1(v) { return Math.round(v * 10) / 10; }
 
-// ─── THERMAL MODEL ───────────────────────────────────────────
-
-// Building thermal mass configs: capacity (kJ/m²·K equivalent), leakage k (windows closed)
+// ═══════════════════════════════════════════════════════════════
+// BUILDING PROFILES
+// mass: effective thermal capacitance kJ/(m²·K) of interior surfaces
+// leakK: infiltration rate (ACH equivalent) when windows closed
+// volume: reference room volume (m³)
+// ═══════════════════════════════════════════════════════════════
 const BUILDING = {
-  light:  { mass: 30,  leakK: 0.08, label: 'Léger' },
-  medium: { mass: 70,  leakK: 0.04, label: 'Standard' },
-  heavy:  { mass: 140, leakK: 0.02, label: 'Lourd' },
+  light:  { mass: 30,  leakK: 0.08, label: 'Léger (ossature bois)',         desc: '30 kJ/m²·K'  },
+  medium: { mass: 70,  leakK: 0.04, label: 'Standard (parpaing)',           desc: '70 kJ/m²·K'  },
+  heavy:  { mass: 140, leakK: 0.02, label: 'Lourd (brique/béton)',          desc: '140 kJ/m²·K' },
+  stone:  { mass: 250, leakK: 0.01, label: 'Pierre massive (murs ≥50 cm)', desc: '250 kJ/m²·K' },
 };
 
-// Ventilation multiplier on the convective exchange coefficient
-const VENT = {
-  single: { mult: 1.0, label: 'Simple' },
-  cross:  { mult: 2.2, label: 'Courant d\'air' },
-  strong: { mult: 3.5, label: 'Forcée' },
+// ═══════════════════════════════════════════════════════════════
+// VENTILATION MODEL — Based on BS 5925 & ASHRAE Fundamentals
+//
+// Natural ventilation airflow combines two driving forces:
+//   1. Wind-driven flow: Q_w = Cd × A_eff × v_wind × C_p_factor
+//   2. Stack (buoyancy) effect: Q_s = Cd × A_eff × √(2·g·Δh·|ΔT|/T_avg)
+//   Combined: Q_total = √(Q_w² + Q_s²)   (uncorrelated drives)
+//   ACH = Q_total × 3600 / Volume
+//
+// References:
+//   - BS 5925:1991 — Code of practice for ventilation
+//   - ASHRAE Handbook — Fundamentals, Ch. 16
+//   - Allard, F. (1998) Natural Ventilation in Buildings
+//   - CIBSE Guide A (2015), §4.5
+// ═══════════════════════════════════════════════════════════════
+
+const VENT_PROFILES = {
+  single: {
+    Cd: 0.60,     // discharge coefficient for single-sided
+    Aeff: 0.8,    // effective opening area m² (typical single window)
+    Cp: 0.25,     // pressure coefficient diff — single sided (low)
+    stackH: 0.5,  // effective stack height m (limited for single side)
+    label: 'Fenêtre simple',
+  },
+  cross: {
+    Cd: 0.65,     // discharge coefficient cross-ventilation
+    Aeff: 1.6,    // two openings
+    Cp: 0.65,     // pressure coefficient difference inlet-outlet
+    stackH: 1.5,  // effective stack height across room
+    label: 'Courant d\'air',
+  },
+  strong: {
+    Cd: 0.65,
+    Aeff: 1.6,
+    Cp: 0.65,
+    stackH: 1.5,
+    // Forced adds a fixed ACH boost from fan
+    fanACH: 5.0,  // additional ACH from mechanical assist
+    label: 'Ventilation forcée',
+  },
 };
 
-// Base convective coefficient k₀ at wind = 0
-const K0_BASE = 0.12;
+const ROOM_VOLUME = 75;  // m³ reference (≈30 m² × 2.5m ceiling)
+const g = 9.81;
 
-// Wind effect: k_wind = K0_BASE + 0.03 * windSpeed (m/s)
-// This models forced convection increasing with wind
-function convectiveK(windSpeed, ventMult) {
-  return (K0_BASE + 0.03 * windSpeed) * ventMult;
+// Calculate ACH from natural ventilation
+function calcACH(windSpeed_ms, deltaT, ventKey, userArea) {
+  const v = VENT_PROFILES[ventKey];
+  const T_avg = 293;
+  const Aeff = userArea || v.Aeff; // ~20°C in Kelvin for stack calc
+
+  // 1. Wind-driven flow (m³/s)
+  // Q_w = Cd × A × v_wind × sqrt(Cp)
+  // For single-sided: De Gids & Phaff model gives Q ≈ A/2 × sqrt(C1×v²+C2×H×ΔT+C3)
+  // We use simplified BS 5925 approach
+  const Q_wind = v.Cd * Aeff * windSpeed_ms * Math.sqrt(Math.abs(v.Cp));
+
+  // 2. Stack (buoyancy) flow (m³/s)
+  // Q_s = Cd × A × sqrt(2 × g × Δh × |ΔT| / T_avg)
+  const absDT = Math.abs(deltaT);
+  const Q_stack = v.Cd * Aeff * Math.sqrt(2 * g * v.stackH * absDT / T_avg);
+
+  // 3. Combined — wind and stack are uncorrelated driving pressures
+  const Q_total = Math.sqrt(Q_wind * Q_wind + Q_stack * Q_stack);
+
+  // 4. ACH
+  let ach = (Q_total * 3600) / ROOM_VOLUME;
+
+  // Fan boost if forced
+  if (v.fanACH) ach += v.fanACH;
+
+  // Cap at reasonable maximum (~30 ACH for wide-open dwelling)
+  return Math.min(ach, 30);
 }
 
-// Solar gain: approximate watts/m² absorbed by interior through glazing
-// Fraction of GHI that enters (single glazing ~0.6, typical net ~0.15 for a room)
-const SOLAR_GAIN_FACTOR = 0.12; // fraction of GHI contributing to indoor heating
-// Convert W/m² to °C/h rise for a given thermal mass
+// Solar gain factor — fraction of GHI entering through glazing
+const SOLAR_GAIN_FACTOR = 0.10;
+
+// Convert GHI to temperature rise per hour given thermal mass
 function solarDeltaT(ghi, thermalMass) {
-  // ghi in W/m², mass in kJ/(m²·K)
-  // ΔT = (GHI * factor * 3.6) / mass  [3.6 converts W·h to kJ]
-  return (ghi * SOLAR_GAIN_FACTOR * 3.6) / (thermalMass * 1000) * 50;
-  // The *50 is a scaling factor for typical room area/volume ratio
+  // P_solar = GHI × factor × glazing_area (assume ~4 m²)
+  // ΔT = P × Δt / (mass × floor_area)
+  // Simplified: scale per unit mass
+  const glazingArea = 4; // m² of sun-exposed glazing
+  const floorArea = 30;  // m²
+  // Energy in 1h: ghi (W/m²) × factor × glazingArea × 3600 (J)
+  // Mass energy: thermalMass (kJ/m²·K) × floorArea × 1000 (J/K)
+  return (ghi * SOLAR_GAIN_FACTOR * glazingArea * 3600) / (thermalMass * floorArea * 1000);
 }
 
-// Heat index approximation (Steadman simplified, valid for T>20°C, RH in %)
+// Heat index (Steadman / Rothfusz regression)
 function heatIndex(T, RH) {
   if (T < 20) return T;
-  // Simplified Rothfusz regression
   const c1=-8.784, c2=1.611, c3=2.339, c4=-0.146, c5=-1.231e-2, c6=-1.642e-2, c7=2.212e-3, c8=7.255e-4, c9=-3.582e-6;
-  const HI = c1 + c2*T + c3*RH + c4*T*RH + c5*T*T + c6*RH*RH + c7*T*T*RH + c8*T*RH*RH + c9*T*T*RH*RH;
+  const HI = c1+c2*T+c3*RH+c4*T*RH+c5*T*T+c6*RH*RH+c7*T*T*RH+c8*T*RH*RH+c9*T*T*RH*RH;
   return Math.max(T, HI);
 }
 
-// Comfort level based on heat index
 function comfortLevel(hi) {
-  if (hi <= 21) return { label: 'Frais', color: '#3b82f6' };
-  if (hi <= 25) return { label: 'Idéal', color: '#22c55e' };
-  if (hi <= 28) return { label: 'Correct', color: '#84cc16' };
-  if (hi <= 32) return { label: 'Chaud', color: '#f59e0b' };
-  if (hi <= 36) return { label: 'Pénible', color: '#f97316' };
-  return { label: 'Danger', color: '#ef4444' };
+  if (hi <= 21) return { label:'Frais',    color:'#3b82f6' };
+  if (hi <= 25) return { label:'Idéal',    color:'#22c55e' };
+  if (hi <= 28) return { label:'Correct',  color:'#84cc16' };
+  if (hi <= 32) return { label:'Chaud',    color:'#f59e0b' };
+  if (hi <= 36) return { label:'Pénible',  color:'#f97316' };
+  return                { label:'Danger',   color:'#ef4444' };
 }
 
-// Should we open windows? Smarter decision:
-// - outdoor temp must be meaningfully lower than indoor
-// - if humidity is very high outdoors (>85%) and temp only slightly lower, not worth it
-// - if wind is strong and temp much lower, strongly recommended
+// ═══════════════════════════════════════════════════════════════
+// WINDOW OPENING DECISION
+// ═══════════════════════════════════════════════════════════════
 function shouldOpen(indoorT, outdoorT, humidity, windSpeed) {
   const delta = indoorT - outdoorT;
-  if (delta < 0.5) return false; // outdoor hotter or equal
+  if (delta < 0.5) return false;            // outdoor hotter or same
   if (humidity > 85 && delta < 3) return false; // too humid for marginal gain
   return true;
 }
 
-function simulate(indoorTemp, weather, buildType, ventType) {
+// ═══════════════════════════════════════════════════════════════
+// THERMAL SIMULATION
+//
+// Per timestep (1 h):
+//   Windows open:
+//     ACH from ventilation model → effective k
+//     dT_ventilation = -k_eff × (T_in - T_out) × Δt
+//     where k_eff = ACH × ρ_air × c_air / (C_thermal)
+//   Windows closed:
+//     slow leakage (infiltration) via leakK
+//   + solar gain always applied
+//   + indoor humidity tracking
+// ═══════════════════════════════════════════════════════════════
+
+const RHO_AIR = 1.2;   // kg/m³
+const C_AIR = 1005;     // J/(kg·K)
+
+function simulate(indoorTemp, weather, buildType, ventType, windowArea) {
   const build = BUILDING[buildType];
-  const vent = VENT[ventType];
   const res = [];
   let T = indoorTemp;
-  // Indoor humidity tracks toward outdoor with lag
-  let indoorRH = 50; // assume starting at 50%
+  let indoorRH = 50;
+
+  // Effective thermal capacity of the room (J/K)
+  const floorArea = 30; // m²
+  const C_total = build.mass * floorArea * 1000; // kJ→J
 
   for (let i = 0; i < weather.length; i++) {
     const w = weather[i];
     const open = shouldOpen(T, w.temp, w.humidity, w.wind);
+    const windMs = w.wind / 3.6; // km/h → m/s
+
+    let ach = 0;
 
     if (open) {
-      // Windows open: convective exchange + wind effect
-      const k = convectiveK(w.wind, vent.mult);
-      // Thermal mass slows the response: effective k reduced by mass factor
-      const kEff = k / (1 + build.mass / 80);
-      T = w.temp + (T - w.temp) * Math.exp(-kEff);
-      // Indoor humidity converges toward outdoor
-      indoorRH += (w.humidity - indoorRH) * 0.4;
+      // Natural ventilation ACH
+      ach = calcACH(windMs, T - w.temp, ventType, windowArea);
+
+      // Heat removal rate: Q = ACH × V × ρ × c × (T_in - T_out) per hour
+      // ΔT = Q × 3600 / C_total
+      const Q_ventilation = ach * ROOM_VOLUME * RHO_AIR * C_AIR * (T - w.temp) / 3600;
+      // Q_ventilation is in Watts; over 1 hour → energy = Q × 3600 J
+      const energyRemoved = Q_ventilation * 3600; // Joules
+      const dT_vent = energyRemoved / C_total;
+      T = T - dT_vent;
+
+      // Humidity converges toward outdoor
+      // Rate depends on ACH — at 10 ACH, nearly instant
+      const humidityRate = Math.min(0.8, ach / 15);
+      indoorRH += (w.humidity - indoorRH) * humidityRate;
     } else {
-      // Windows closed: slow leakage through walls/glazing
+      // Windows closed — infiltration leakage
       const kLeak = build.leakK;
       T = w.temp + (T - w.temp) * Math.exp(-kLeak);
-      // Indoor humidity slowly drifts
       indoorRH += (w.humidity - indoorRH) * 0.05;
     }
 
-    // Solar gain (adds heat even with windows closed, more if open due to air movement not blocking)
-    const solarGain = solarDeltaT(w.ghi, build.mass);
-    T += solarGain;
+    // Solar gain
+    T += solarDeltaT(w.ghi, build.mass);
 
-    // Clamp indoor RH
-    indoorRH = Math.max(30, Math.min(90, indoorRH));
+    // Clamp
+    indoorRH = Math.max(25, Math.min(95, indoorRH));
 
     const feelsLike = heatIndex(T, indoorRH);
     const comfort = comfortLevel(feelsLike);
 
     res.push({
-      hour: w.hour,
-      outdoor: round1(w.temp),
-      wind: round1(w.wind),
-      humidity: Math.round(w.humidity),
-      ghi: Math.round(w.ghi),
-      indoor: round1(T),
-      indoorRH: Math.round(indoorRH),
-      feelsLike: round1(feelsLike),
-      comfort,
-      open,
+      hour: w.hour, outdoor: round1(w.temp), wind: round1(w.wind),
+      humidity: Math.round(w.humidity), ghi: Math.round(w.ghi),
+      indoor: round1(T), indoorRH: Math.round(indoorRH),
+      feelsLike: round1(feelsLike), comfort, open,
+      ach: round1(ach),
     });
   }
   return res;
 }
 
-// ─── MAIN ─────────────────────────────────────────────────────
-
+// ═══════════════════════════════════════════════════════════════
+// MAIN
+// ═══════════════════════════════════════════════════════════════
 async function analyze() {
   const btn = document.getElementById('goBtn');
   const errEl = document.getElementById('errMsg');
@@ -273,13 +406,12 @@ async function analyze() {
     const lat = parseFloat(gData[0].lat), lon = parseFloat(gData[0].lon);
     const city = gData[0].display_name.split(',')[0];
 
-    // Forecast — fetch temp, wind, humidity, solar radiation
+    // Forecast
     const params = 'temperature_2m,relative_humidity_2m,wind_speed_10m,shortwave_radiation';
     const fRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=${params}&timezone=auto&forecast_days=2`);
     const fData = await fRes.json();
     const h = fData.hourly;
 
-    // Slice next 24h
     const nowH = new Date().getHours();
     const si = h.time.findIndex(t => new Date(t).getHours() === nowH);
     const weather = [];
@@ -293,99 +425,71 @@ async function analyze() {
       });
     }
 
-    const indoorTemp = parseFloat(slider.value);
+    const indoorTemp = parseFloat(document.getElementById('tempInput').value);
     const buildType = document.getElementById('buildType').value;
     const ventType = document.getElementById('ventType').value;
-    const data = simulate(indoorTemp, weather, buildType, ventType);
+    const windowArea = parseFloat(document.getElementById('windowArea').value) || 1.2;
+    const data = simulate(indoorTemp, weather, buildType, ventType, windowArea);
 
     const openSlots = data.filter(d => d.open);
     const best = openSlots.length ? openSlots.reduce((b,d) => d.outdoor < b.outdoor ? d : b, openSlots[0]) : null;
-    const finalT = data[data.length - 1].indoor;
     const minIndoor = Math.min(...data.map(d => d.indoor));
     const drop = round1(indoorTemp - minIndoor);
 
-    // Recommendation
+    // Recommendation box
     const box = document.getElementById('recBox');
     if (openSlots.length > 0) {
-      // Find contiguous groups
       const groups = [];
-      let g = [openSlots[0]];
+      let gr = [openSlots[0]];
       for (let i = 1; i < openSlots.length; i++) {
-        const prev = openSlots[i-1].hour;
-        const cur = openSlots[i].hour;
-        if (cur === (prev + 1) % 24) { g.push(openSlots[i]); }
-        else { groups.push(g); g = [openSlots[i]]; }
+        const prev = openSlots[i-1].hour, cur = openSlots[i].hour;
+        if (cur === (prev + 1) % 24) { gr.push(openSlots[i]); }
+        else { groups.push(gr); gr = [openSlots[i]]; }
       }
-      groups.push(g);
+      groups.push(gr);
       const slotsText = groups.map(g => `${fmtH(g[0].hour)}–${fmtH((g[g.length-1].hour+1)%24)}`).join(' et ');
-
-      const humidityWarn = openSlots.some(s => s.humidity > 80)
-        ? `<br>⚠️ Humidité élevée sur certains créneaux — aérez par intermittence.`
-        : '';
-
+      const maxACH = Math.max(...openSlots.map(s => s.ach));
+      const humidityWarn = openSlots.some(s => s.humidity > 80) ? '<br>⚠️ Humidité élevée sur certains créneaux — aérez par intermittence.' : '';
       box.className = 'box box-ok';
-      box.innerHTML = `<p class="main">Ouvrez vos fenêtres : ${slotsText}</p>
-        <p class="detail">Meilleur moment : <strong>${fmtH(best.hour)}</strong> (${best.outdoor}°C, vent ${best.wind} km/h).
-        Baisse estimée : <strong>−${drop}°C</strong> (de ${indoorTemp}°C à ${round1(minIndoor)}°C).${humidityWarn}</p>`;
+      box.innerHTML = `<p class="main">🪟 Ouvrez vos fenêtres : ${slotsText}</p>
+        <p class="detail">Meilleur moment : <strong>${fmtH(best.hour)}</strong> (${best.outdoor}°C, vent ${best.wind} km/h, ${best.ach} ACH).
+        Baisse estimée : −${drop}°C (min ${round1(minIndoor)}°C). Débit max : ${round1(maxACH)} renouvellements/h.${humidityWarn}</p>`;
     } else {
-      const allHot = weather.every(w => w.temp >= indoorTemp - 1);
-      if (allHot) {
-        box.className = 'box box-no';
-        box.innerHTML = `<p class="main">Il fait trop chaud dehors sur les 24h à venir.</p>
-          <p class="detail">Gardez fenêtres fermées et volets clos. Envisagez une ventilation mécanique.</p>`;
-      } else {
-        box.className = 'box box-warn';
-        box.innerHTML = `<p class="main">Créneaux trop courts ou trop humides pour un rafraîchissement efficace.</p>
-          <p class="detail">L'écart intérieur/extérieur est faible ou l'humidité trop élevée pour justifier l'ouverture.</p>`;
-      }
+      box.className = 'box box-warn';
+      box.innerHTML = `<p class="main">Pas de créneau favorable dans les 24h</p>
+        <p class="detail">La température extérieure reste trop proche ou supérieure à l'intérieur. Gardez fenêtres fermées et utilisez volets/stores.</p>`;
     }
 
     // Chart
-    document.getElementById('chartTitle').textContent = `Prévision sur 24h — ${city}`;
     if (myChart) myChart.destroy();
-    myChart = new Chart(document.getElementById('chart'), {
+    const ctx = document.getElementById('chart').getContext('2d');
+    myChart = new Chart(ctx, {
       type: 'line',
       data: {
         labels: data.map(d => fmtH(d.hour)),
         datasets: [
-          {
-            label: 'Intérieur',
-            data: data.map(d => d.indoor),
-            borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.08)',
-            fill: true, tension: .35, pointRadius: 2, borderWidth: 2.5,
-          },
-          {
-            label: 'Ressenti',
-            data: data.map(d => d.feelsLike),
-            borderColor: '#8b5cf6', backgroundColor: 'transparent',
-            fill: false, tension: .35, pointRadius: 0, borderWidth: 1.5, borderDash: [5,3],
-          },
-          {
-            label: 'Extérieur',
-            data: data.map(d => d.outdoor),
-            borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,0.06)',
-            fill: true, tension: .35, pointRadius: 2, borderWidth: 2,
-          },
+          { label:'Intérieur (simulé)', data:data.map(d=>d.indoor), borderColor:'#f97316', backgroundColor:'rgba(249,115,22,.08)', borderWidth:2.5, fill:true, tension:.3, pointRadius:0 },
+          { label:'Ressenti (heat index)', data:data.map(d=>d.feelsLike), borderColor:'#a855f7', backgroundColor:'transparent', borderWidth:1.5, borderDash:[5,4], tension:.3, pointRadius:0 },
+          { label:'Extérieur', data:data.map(d=>d.outdoor), borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.06)', borderWidth:2, fill:true, tension:.3, pointRadius:0 },
         ]
       },
       options: {
-        responsive: true,
-        interaction: { mode: 'index', intersect: false },
+        responsive:true, maintainAspectRatio:false,
+        interaction:{ mode:'index', intersect:false },
         plugins: {
-          legend: { display: false },
           tooltip: {
             callbacks: {
-              afterBody: (items) => {
-                const i = items[0].dataIndex;
+              afterBody: (ctx) => {
+                const i = ctx[0].dataIndex;
                 const d = data[i];
-                return `Vent: ${d.wind} km/h · Humid: ${d.humidity}% · Soleil: ${d.ghi} W/m²\nConfort: ${d.comfort.label} · ${d.open ? '🪟 Ouvert' : 'Fermé'}`;
+                return `Vent : ${d.wind} km/h · Humidité ext : ${d.humidity}%\nGHI : ${d.ghi} W/m² · Hum. int : ${d.indoorRH}%\nACH : ${d.ach} · Confort : ${d.comfort.label}\n${d.open ? '🪟 Ouvert' : 'Fermé'}`;
               }
             }
           }
         },
         scales: {
           y: { ticks: { callback: v => v + '°' } },
-          x: { ticks: { maxRotation: 0 } }
+          x: { ticks: { maxRotation:0 } }
         }
       }
     });
@@ -402,19 +506,21 @@ async function analyze() {
         <td class="r"><strong>${d.indoor}°</strong></td>
         <td class="r">${d.feelsLike}°</td>
         <td class="c"><span class="comfort-dot" style="background:${d.comfort.color}"></span>${d.comfort.label}</td>
+        <td class="r">${d.open ? d.ach : '—'}</td>
         <td class="c">${d.open ? '🪟 Ouvrir' : '—'}</td>
       </tr>`
     ).join('');
 
     // Model info
-    const b = BUILDING[buildType], v = VENT[ventType];
+    const b = BUILDING[buildType], v = VENT_PROFILES[ventType];
     document.getElementById('modelInfo').innerHTML = `
-      <strong>Paramètres du modèle :</strong> Bâtiment ${b.label.toLowerCase()} (masse thermique ${b.mass} kJ/m²·K, fuite k=${b.leakK}).
-      Ventilation ${v.label.toLowerCase()} (×${v.mult}).
-      Échange convectif : k = (${K0_BASE} + 0.03 × vent) × ${v.mult}, atténué par l'inertie.
-      Gain solaire : ${(SOLAR_GAIN_FACTOR*100).toFixed(0)}% du rayonnement incident.
-      Ressenti : indice de chaleur Steadman (température + humidité intérieure).
-      Décision d'ouverture : ΔT > 0.5°C requis, inhibée si humidité > 85% et ΔT < 3°C.
+      <strong>Modèle physique :</strong><br>
+      • Bâtiment : ${b.label} — capacité thermique ${b.desc}, infiltration k=${b.leakK}<br>
+      • Ventilation : ${v.label} — Cd=${v.Cd}, ouverture <strong>${windowArea} m²</strong>, Cp=${v.Cp}, hauteur tirage ${v.stackH} m${v.fanACH ? ', +'+v.fanACH+' ACH ventilateur' : ''}<br>
+      • Débit d'air : Q<sub>total</sub> = √(Q<sub>vent</sub>² + Q<sub>tirage</sub>²) — BS 5925 / ASHRAE<br>
+      • Q<sub>vent</sub> = Cd·A·v·√Cp &nbsp;|&nbsp; Q<sub>tirage</sub> = Cd·A·√(2·g·Δh·|ΔT|/T<sub>moy</sub>)<br>
+      • Gain solaire : ${(SOLAR_GAIN_FACTOR*100)}% du GHI × 4 m² vitrage / masse thermique<br>
+      • Ressenti : indice de chaleur Steadman · Ouverture inhibée si humidité >85% et ΔT <3°C
     `;
 
     document.getElementById('results').style.display = 'block';
